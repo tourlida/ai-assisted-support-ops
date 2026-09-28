@@ -1,0 +1,9 @@
+id,name,email,tier,join_date
+CUST-001,John Doe,john@example.com,gold,2023-06-12
+CUST-002,Jane Smith,jane@example.com,silver,2023-08-23
+CUST-003,Mike Johnson,mike@example.com,bronze,2024-01-15
+CUST-004,Emily Davis,emily@example.com,gold,2023-11-02
+CUST-005,David Wilson,david@example.com,silver,2024-02-18
+CUST-006,Sofia Brown,sofia@example.com,gold,2022-10-09
+CUST-007,Daniel Miller,daniel@example.com,bronze,2024-03-04
+CUST-008,Laura Garcia,laura@example.com,silver,2023-12-14

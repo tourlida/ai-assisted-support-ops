@@ -1,0 +1,6 @@
+id,customer_id,order_id,category,priority,status,summary,created_at
+TKT-001,CUST-001,ORD-1032,late_delivery,high,open,Order arrived two days late; customer requests compensation.,2024-05-18
+TKT-002,CUST-002,ORD-1027,cancellation,medium,closed,Customer asked to cancel before shipment.,2024-04-20
+TKT-003,CUST-004,ORD-1025,product_question,low,closed,Customer asked whether USB-C hub supports dual monitors.,2024-04-17
+TKT-004,CUST-006,ORD-1023,late_delivery,medium,open,Delivery arrived three days after estimate.,2024-04-19
+TKT-005,CUST-008,ORD-1021,shipping,medium,open,Customer asks for estimated delivery date.,2024-04-08
