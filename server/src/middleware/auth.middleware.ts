@@ -9,10 +9,8 @@ function isUserRole(value: unknown): value is UserRole {
 }
 
 export const authenticate: RequestHandler = (request, _response, next) => {
-  const authorization = request.get("authorization");
-  const [scheme, token, ...extraParts] = authorization?.trim().split(/\s+/) ?? [];
-
-  if (scheme !== "Bearer" || !token || extraParts.length > 0) {
+  const token: unknown = request.cookies?.access_token;
+  if (typeof token !== "string" || token.length === 0) {
     next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
     return;
   }

@@ -6,3 +6,4 @@
 | Design, apply, and validate the initial PostgreSQL schema migration | ☑ Completed | 2026-09-29 |
 | Add and apply the application users authentication migration | ☑ Completed | 2026-09-29 |
 | Build the TypeScript/Express backend with PostgreSQL health checks, bcrypt/JWT authentication, and protected mock chat API | ☑ Completed | 2026-09-29 |
+| Deliver the authenticated SupportOps web app with HttpOnly-cookie registration/login, protected dashboard, logout, and mock chat | ☑ Completed | 2026-09-29 |

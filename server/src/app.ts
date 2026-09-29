@@ -1,4 +1,5 @@
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import express, { type RequestHandler } from "express";
 import { env } from "./config/env.js";
 import { authRouter } from "./routes/auth.routes.js";
@@ -20,6 +21,7 @@ export const app = express();
 app.disable("x-powered-by");
 app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
 app.use(requestLogger);
 app.use("/health", healthRouter);
 app.use("/api/auth", authRouter);

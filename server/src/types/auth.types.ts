@@ -11,11 +11,11 @@ export interface JwtPayload extends AuthenticatedUser {}
 
 export interface SafeUser {
   id: string;
+  name: string;
   email: string;
   role: UserRole;
 }
 
 export interface LoginResponse {
-  token: string;
   user: SafeUser;
 }

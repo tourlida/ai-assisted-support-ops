@@ -272,12 +272,78 @@ The user also supplied the schema-design specification requiring inspection of a
 
 **Scope note:** No new row was added to `docs/milestones.md` because the user has not designated this backend phase as a milestone.
 
+#### Replacing the signup request with cookie authentication and frontend scope
+
+**User:**
+
+> Revert our last signup-route changes and follow the new specification for HttpOnly-cookie authentication, registration/login/logout/current-user endpoints, and a React frontend with protected dashboard and mock chat UI. The specification says not to invent a frontend-only user name and to report a missing database name field as a schema dependency before modifying the database.
+
+**Assistant:**
+
+> I’ll first isolate the signup-only edits from the previous request so I can undo just those, then check the current `users` schema against the new requirements. The new spec requires a persisted user name, so I’ll verify whether that column exists before proceeding with any database changes or building UI that would depend on an invented name.
+
+**Outcome at that point:** Reverted the prior signup endpoint, validation, service, tests, and README additions; the existing login-only backend still passed strict TypeScript checking. Inspection of the live `users` table confirmed it had no `name` or other display-name column. Implementation paused pending a schema decision.
+
+#### Approved display-name migration and cookie-authenticated web app
+
+**User:**
+
+> yes i am approving that you can continue
+
+This approved the forward-only user display-name migration needed by the registration and dashboard requirements. The subsequent implementation scope was to add cookie-based JWT authentication, registration/login/logout/current-user endpoints, and a React + TypeScript frontend with protected routing, auth restoration, and mock chat. The JWT must remain in an HttpOnly cookie and never be returned to React or stored in browser storage. No AI/RAG work is included.
+
+**Assistant:**
+
+> Thanks for approving the schema change. I’ll add a forward-only migration for a persisted, required user name, then switch backend auth to HttpOnly cookies and add registration, `/me`, and logout. After that I’ll build the React client for registration/login, protected dashboard, and mock chat; I’ll keep the JWT inaccessible to React, test the full flow, and leave migrations 001/002 untouched.
+
+**Database change:** Added and applied `database/migrations/003_add_user_name.sql`. It adds `users.name text NOT NULL` with a trimmed/nonblank check. The database had no existing user rows before the migration, so there was nothing to backfill. Migrations 001 and 002 remain unchanged; the original nine-table model remains in place, with no user/customer relationship.
+
+**Backend changes:** Updated auth to register users with bcrypt hashes and the default `agent` role, set login/registration JWTs in a centrally configured `HttpOnly`, `SameSite=Lax` `access_token` cookie, verify that cookie in auth middleware, provide `/api/auth/me`, and clear the cookie on `/api/auth/logout`. JSON responses contain safe user data only. Cookie `maxAge` is derived from `JWT_EXPIRES_IN`; `Secure` is enabled in production. CORS is restricted to the configured client origin with credentials. The README documents CSRF considerations and deployment caveats.
+
+**Frontend changes:** Created a Vite/React/TypeScript client with React Router, React Hook Form, Zod, and a small icon library. It includes registration and login forms, auth context with `/api/auth/me` restoration, protected routes, an authenticated dashboard/nav showing the persisted name, logout, and a responsive local-state chat connected to the existing mocked API. All API calls use `credentials: "include"`; frontend auth state contains only safe user information and never stores a JWT. Route pages are lazy-loaded.
+
+**Validation:** Backend typecheck/build passed and 18 integration tests passed, including registration, duplicate email, password/hash behavior, login, `/me`, logout, cookie settings, and protected chat. Frontend typecheck/build passed and 7 tests passed for auth schemas, restoration, registration, login, protected routing, logout, and chat. Both dependency audits report zero vulnerabilities. Browser verification covered invalid registration input, signup and dashboard entry, HttpOnly cookie invisibility to `document.cookie`, no JWT in browser storage, session restoration after reload, mock chat, logout, and protected-route redirect. Desktop and 390px mobile views were checked; no horizontal overflow was found.
+
+The browser-created test user and automated test users were removed; the live `users` table is empty. `.env` values were kept out of output and project files. The updated backend runs at `http://localhost:3001` because port 3000 was already occupied; Vite runs at `http://localhost:5173`. No new milestone was added because the user has not designated this phase as a milestone.
+
+**Operational follow-up:** The ignored `server/.env` previously duplicated `DATABASE_URL`, which could drift from the Docker database settings. The backend now constructs its database URL from the repository-root `.env` fields `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_HOST`, and `DATABASE_PORT`; the duplicate `DATABASE_URL` was removed from `server/.env`. The validated server-only settings remain local there. The current `/health/db` probe passes.
+
+#### Password payload and database environment centralization
+
+**User:**
+
+> We have a security issue during our user registration we are exposing the password in the payload without being encoded fix it. and update our server/.env through our base .env file where we configure all the db related data about port etc.
+
+**Assistant:**
+
+> I’ll inspect the registration request path and logging first, without exposing any environment values. Important security distinction: the browser must send the password to the server to register, and encoding it in JavaScript wouldn’t protect it; the server should hash it before storage, avoid logging it, and use HTTPS outside localhost. I’ll verify those protections, then consolidate database URL construction on the root `.env` so `server/.env` no longer needs duplicate DB settings.
+
+**Security outcome:** The server already hashes registration passwords with bcrypt before database insertion and does not log request bodies. The frontend now sends only `name`, `email`, and `password`; `confirmPassword` remains local validation data and is omitted. The API client allows HTTP only for loopback during development and requires HTTPS for all non-local API origins. Passwords are not client-side encoded or hashed because encoding is reversible and a client-side hash would become a reusable credential. A browser's developer tools can still inspect that browser's own request; HTTPS protects the password in transit in production.
+
+**Environment outcome:** The server now builds its PostgreSQL connection URL from the repository-root database settings (`DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_HOST`, and `DATABASE_PORT`). `DATABASE_HOST` is configured locally in the root ignored `.env`; the duplicate `DATABASE_URL` entry was removed from ignored `server/.env`. No environment values were printed. Both local env files remain Git-ignored.
+
+**Validation:** Backend typecheck/build and all 18 backend tests passed. Client typecheck/build and all 8 tests passed, including assertions that `confirmPassword` and tokens are absent from registration JSON and that non-local HTTP is rejected. Dependency audits report zero vulnerabilities. The rebuilt API on port 3002 passes `/health` and `/health/db`; a source/document scan found no configured secret values.
+
+#### Restart Docker, backend, and frontend services
+
+**User:**
+
+> can you turn on server and client and the docker? kill all the processes if you find any that running in the ports that are connected with our app. And restart everything so we can have a clear db.
+
+**Assistant:**
+
+> I’ll check Docker status, app-port listeners, and row counts before changing anything. By “clear database,” I’ll preserve the schema and volume but clear table rows if any exist; I won’t drop the database or migrations. I’ll stop only processes listening on the app ports you specified, then restart Postgres, API, and Vite on their standard ports and verify them.
+
+**Outcome:** Docker was already running. Stopped the four Node listeners on ports 3000, 3001, 3002, and 5173, then restarted the existing Postgres container while preserving its data volume and schema. All nine application tables were already empty, so no row deletion was necessary. Restarted the API on port 3000 using root `.env` database settings and Vite on port 5173 configured for that API. `/health` and `/health/db` both return OK, Vite returns HTTP 200, and the database remains at nine tables with zero rows.
+
 ## Architecture Decision Log
 
 | ID | Topic | Decision | Status | Rationale / consequences |
 | --- | --- | --- | --- | --- |
 | DB-1 | Relational database | Use the official PostgreSQL container image | Running locally; provisionally tagged `postgres:17` | User requested the official image. The Compose service reads local settings from `.env`; the major image version is an implementation default and can be revisited. |
 | DB-2 | Local database configuration | Keep database name, password, and host port in an ignored `.env` file | Implemented | `DATABASE_PORT` interprets the user's `database_port` as a port; `.env` is excluded from Git. Password currently has a local-only placeholder value. |
+| DB-3 | User display name | Add `users.name` via forward-only migration 003 | Applied | Approved because registration/dashboard need a persisted name; no existing users required backfill. |
+| AUTH-1 | Browser authentication | Store JWT only in an HttpOnly `SameSite=Lax` cookie | Implemented | React receives safe user data only; browser automatically sends the cookie, and the backend clears it on logout. |
 
 | ID | Topic | Decision | Status | Rationale / consequences |
 | --- | --- | --- | --- | --- |

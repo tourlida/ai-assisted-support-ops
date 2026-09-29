@@ -108,6 +108,7 @@ erDiagram
 erDiagram
     users {
         uuid id PK
+        text name
         text email UK
         text password_hash
         text role
