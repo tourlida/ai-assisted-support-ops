@@ -256,6 +256,22 @@ The user also supplied the schema-design specification requiring inspection of a
 
 **Outcome:** Confirmed nine public tables in the running database: `customers`, `products`, `orders`, `order_items`, `support_tickets`, `documents`, `document_pages`, `document_chunks`, and `users`. PostgreSQL reports estimated row counts of zero for all nine; the schema migrations define structure only and no records have been seeded.
 
+#### Backend foundation, authentication, and mocked chat API
+
+**User:**
+
+> Create the TypeScript/Express backend under `/server` using the existing PostgreSQL schema and `users` table. Implement health checks, login with bcrypt and JWT, JWT middleware, protected mock chat endpoints, Zod validation, centralized errors, restricted CORS, safe logging, tests, and a README. Do not create migrations/tables or implement AI, RAG, embeddings, LLMs, tools, or a frontend. Credentials and tokens must never be printed or committed; `.env.example` must contain placeholders. Validate the server end to end.
+
+**Assistant:**
+
+> I’ll build only the `/server` backend foundation, authentication, and mocked chat API from this specification. I’ll start by checking the existing migrations, Git ignore rules, and database state without reading or printing `.env`; then I’ll scaffold the server around the actual `users` schema and validate it end to end without adding AI/RAG or frontend code.
+
+**Implementation:** Added a strict TypeScript Express subproject with centralized Zod environment validation, a `pg` connection pool, bcrypt login against the existing `users` table, a minimal JWT containing user ID and role, JWT middleware, health endpoints, protected mock-chat endpoints, safe error handling, bounded JSON parsing, configured-origin CORS, and request logging that excludes headers and bodies. Added a placeholder-only `server/.env.example`, server and root Git ignore rules, package configuration/lockfile, integration tests, and `server/README.md`. No tables or migrations were created, and no AI/RAG/LLM/frontend functionality was added.
+
+**Validation:** Strict TypeScript check and production build passed. All 14 database-backed integration tests passed, covering health and DB health, login validation, invalid/inactive/valid login, safe JWT payload, missing/invalid/expired/valid tokens, protected mock chat, request validation, and CORS. Tests created random temporary accounts in the existing `users` table and removed them in teardown; the table is empty afterward. Live `/health` and `/health/db` probes passed; the protected chat health endpoint returned 401 without a token. Production and full dependency audits report zero vulnerabilities. `.env` files and build/dependency outputs are ignored; `.env.example` remains trackable. A workspace scan found no configured database password in project files. The local server is running at `http://localhost:3000`.
+
+**Scope note:** No new row was added to `docs/milestones.md` because the user has not designated this backend phase as a milestone.
+
 ## Architecture Decision Log
 
 | ID | Topic | Decision | Status | Rationale / consequences |
