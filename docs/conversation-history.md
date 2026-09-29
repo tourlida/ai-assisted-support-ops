@@ -183,6 +183,47 @@ This is the working record for the AI-assisted support operations assignment. It
 
 **Outcome:** Grouped the conversation entries under explicit date headings. New entries will be added under the appropriate day.
 
+#### Database schema design from supplied datasets
+
+**User:**
+
+> Ok now our next step is to generate a db schema based on the datasets that we have.
+
+The user also supplied the schema-design specification requiring inspection of all CSVs and PDFs, a data model report before SQL, an executable PostgreSQL migration, schema documentation, a Mermaid ERD, validation, and no ingestion, PDF extraction/chunking, embeddings, vector search, RAG, or application integration in this phase.
+
+**Assistant:**
+
+> I’ll treat this as the start of the schema-design phase, not an ingestion task: first I’ll inspect every CSV and PDF, then write the data-model report and use it to drive the executable migration and matching docs. I’ll leave all source files unchanged, and I’ll flag any relationships or PDF metadata that the files don’t actually support.
+
+**Analysis outcome:** Inspected five CSVs (43 rows total) and all four one-page PDFs. CSV IDs and candidate foreign-key values resolve, with no exact duplicate rows. The PDFs expose visible titles and business update dates but anonymous PDF title/author metadata; they refer to general policies/FAQ, not specific CSV entities. `ORD-1023` has a source header amount of 278.99 and line totals of 228.99, a difference of 50.00; the CSVs provide no currency, so the amount is not assigned a currency symbol.
+
+**Deliverables created:**
+
+- `database/DATA_MODEL.md` records source analysis, entities, relationships, key decisions, normalization, data quality, assumptions, and open questions.
+- `database/migrations/001_initial_schema.sql` defines five structured tables and three document/page/chunk tables; it includes keys, checks, indexes, JSONB metadata, and provenance columns.
+- `database/schema.md` documents every table and column from the migration.
+- `database/ERD.md` provides separate Mermaid ER diagrams for structured-domain and document/RAG-preparation data.
+
+**Validation outcome:** The migration executed successfully in a temporary PostgreSQL 17 database, creating eight tables, seven foreign keys, and 33 check constraints. All 43 CSV columns are represented. The temporary validation database was removed, and the project's `ai_support_ops` database remains empty. No CSV/PDF rows were loaded, no page text or chunks were generated, and no embedding/vector/RAG functionality was added. Markdown diagnostics report no errors. A Mermaid CLI was unavailable, so ERD syntax was kept to standard Mermaid `erDiagram` constructs.
+
+**Correction:** An earlier progress update used a euro symbol when describing the 50.00 amount difference. That currency was not established by the source data; the difference is 50.00 in an unspecified currency.
+
+**Milestone LinkedIn draft:**
+
+> Designed the database foundation for an AI-assisted support operations system from its source datasets. The PostgreSQL schema separates customer, product, order, and support-ticket data from document/page/chunk provenance, preserves source identifiers, and makes future retrieval traceable to document pages. The migration was validated against PostgreSQL 17 without loading source data or introducing embeddings or vector search.
+
+#### Designating database migrations as a milestone
+
+**User:**
+
+> db migrations is a milestone so you can procceed by updating the relevant milestones doc
+
+**Assistant:**
+
+> I’ll add the schema/migration work as the second completed milestone, keeping the tracker in its simple checkbox-table format. I’ll check both the tracker and day-separated conversation history first, then record your milestone designation and the validation evidence.
+
+**Outcome:** Added M2, “Design and validate the initial PostgreSQL schema migration,” as completed. The migration was executed against a temporary PostgreSQL 17 database and then the temporary database was removed; the project database remains untouched.
+
 ## Architecture Decision Log
 
 | ID | Topic | Decision | Status | Rationale / consequences |
