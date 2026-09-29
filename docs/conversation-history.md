@@ -224,6 +224,38 @@ The user also supplied the schema-design specification requiring inspection of a
 
 **Outcome:** Added M2, “Design and validate the initial PostgreSQL schema migration,” as completed. The migration was executed against a temporary PostgreSQL 17 database and then the temporary database was removed; the project database remains untouched.
 
+#### Add application users table
+
+**User:**
+
+> We have already completed and executed our initial database migration: `database/migrations/001_initial_schema.sql`. The database is running locally in Docker and the existing tables are already created. Add application-level users for authentication using a new migration only. Do not modify migration 001 or existing tables, do not connect `users` to `customers`, and do not implement Node.js authentication or JWT logic. The users table needs a UUID id, normalized unique email, password hash, constrained `agent`/`admin` role, active status, and timestamps. Update `schema.md`, `ERD.md`, `DATA_MODEL.md`, validate/apply the migration, verify existing tables remain unchanged, and update the milestones.
+
+**Assistant:**
+
+> I’ll add this as a new, transactional migration only, then apply it to the live database as `ai_support_ops_user`. I’ll first inspect the existing database docs and capture a baseline of migration 001 plus the live tables/constraints, so we can verify the existing schema remains unchanged afterward; I’ll also update the milestone tracker and conversation history.
+
+**Design decision:** Added `users` as a standalone application identity table. It uses `uuid DEFAULT gen_random_uuid()`, canonical lowercase/trimmed email with a unique `lower(email)` index, nonblank `password_hash`, `agent`/`admin` check with `agent` default, `is_active DEFAULT true`, and `created_at`/`updated_at DEFAULT now()`. It has no customer foreign key, auth/JWT logic, trigger, or seed row.
+
+**Implementation and validation outcome:** Created `database/migrations/002_add_users.sql` and updated `database/schema.md`, `database/ERD.md`, and `database/DATA_MODEL.md`. Applied the migration to `ai_support_ops` as `ai_support_ops_user`. Verified the UUID/default values, email and role checks, unique email index, and no persisted test users after transaction rollback. A schema-only comparison confirmed all eight existing tables match a clean reconstruction from migration 001; the migration-001 SHA-256 remained unchanged. The live database now has nine tables, 57 constraints total, and no foreign keys from `users` to existing tables. The migration created no seed accounts. No Node.js/JWT work was done.
+
+**Milestone:** Added “Add and apply the application users authentication migration” as completed in `docs/milestones.md`.
+
+**Milestone LinkedIn draft:**
+
+> Added the application identity foundation for SupportOps with a dedicated PostgreSQL migration. User accounts now have UUID identifiers, normalized case-insensitive unique emails, hashed-password storage, constrained agent/admin roles, active status, and timestamps. The migration is applied and verified; customer records remain separate, and authentication/JWT logic stays in the application phase.
+
+#### Current database table summary
+
+**User:**
+
+> can you summarize all the tables that are contained now in my db image?
+
+**Assistant:**
+
+> I’ll query the live `ai_support_ops` database for its current tables and row counts, then summarize each table’s role based on the schema docs. I’ll also record this exchange in the conversation history, following your standing preference.
+
+**Outcome:** Confirmed nine public tables in the running database: `customers`, `products`, `orders`, `order_items`, `support_tickets`, `documents`, `document_pages`, `document_chunks`, and `users`. PostgreSQL reports estimated row counts of zero for all nine; the schema migrations define structure only and no records have been seeded.
+
 ## Architecture Decision Log
 
 | ID | Topic | Decision | Status | Rationale / consequences |
