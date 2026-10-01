@@ -118,6 +118,24 @@ erDiagram
     }
 ```
 
+### CSV Import Auditing
+
+```mermaid
+erDiagram
+    data_import_runs {
+        bigint id PK
+        text status
+        timestamptz started_at
+        timestamptz finished_at
+        jsonb file_manifest
+        jsonb row_counts
+        jsonb warnings
+        text error_summary
+    }
+```
+
+An import run audits a five-file CSV batch; it has no foreign-key relationship to individual business rows.
+
 Notes:
 
 - `ORDERS` has a unique (`id`, `customer_id`) key so `SUPPORT_TICKETS` can enforce that the ticket's order belongs to its customer.

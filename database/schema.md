@@ -1,16 +1,39 @@
 # Database Schema
 
-The executable source of truth is [`migrations/001_initial_schema.sql`](migrations/001_initial_schema.sql), [`migrations/002_add_users.sql`](migrations/002_add_users.sql), and [`migrations/003_add_user_name.sql`](migrations/003_add_user_name.sql). This document describes the resulting schema.
+The executable source of truth is [`migrations/001_initial_schema.sql`](migrations/001_initial_schema.sql), [`migrations/002_add_users.sql`](migrations/002_add_users.sql), [`migrations/003_add_user_name.sql`](migrations/003_add_user_name.sql), and [`migrations/004_add_data_import_runs.sql`](migrations/004_add_data_import_runs.sql). This document describes the resulting schema.
 
 ## Model Overview
 
 Structured CSV records are modeled as five normalized business-data tables: `customers`, `products`, `orders`, `order_items`, and `support_tickets`. Application access is modeled separately by `users`. A `user` is a person authorized to access the SupportOps application; a `customer` is a business entity whose order and support data is managed by the system. They are different concepts and `users` has no foreign key to `customers`. The PDFs have a separate document provenance model: `documents`, `document_pages`, and `document_chunks`. There are deliberately no foreign keys between business-domain tables and documents because the provided PDFs do not identify specific customer, product, order, or ticket IDs.
 
-The migration creates schema only. It does not load CSV records or PDF rows, extract page text, generate chunks, or create embeddings. It does not install `pgvector`.
+The migrations create the relational schema and import-run audit table. The separate CLI loads the five structured CSV files. No PDF rows are loaded, page text is not extracted, chunks and embeddings are not generated, and `pgvector` is not installed.
 
 The `users` table stores only application-generated password hashes, never plaintext passwords. Password hashing and verification, login, inactive-account rejection, and future JWT/session behavior belong to the application layer and are not implemented by these migrations.
 
-Every structured table includes `source_file` and `source_row_number` for future CSV-import provenance. Those are additional audit columns, not columns from the CSV files. `source_row_number` includes the header as line 1, so data rows must be numbered from 2.
+Every structured table includes `source_file` and `source_row_number` for CSV-import provenance. The CLI populates these additional audit columns; they are not columns from the CSV files. `source_row_number` includes the header as line 1, so data rows start at 2.
+
+## CSV Import Run Auditing
+
+### `data_import_runs`
+
+Purpose: Audit one explicit batch across the five structured CSV source files.
+
+| Column | PostgreSQL type | Null? | Key / constraint |
+| --- | --- | --- | --- |
+| `id` | `bigint GENERATED ALWAYS AS IDENTITY` | No | Primary key. |
+| `status` | `text` | No | `running`, `succeeded`, or `failed`; defaults to `running`. |
+| `started_at` | `timestamptz` | No | Defaults to `now()`. |
+| `finished_at` | `timestamptz` | Yes | Required when status is `succeeded` or `failed`; null while `running`. |
+| `file_manifest` | `jsonb` | No | JSON object of source path, SHA-256, and per-file row count. |
+| `row_counts` | `jsonb` | No | JSON object of validated records per target table; defaults to `{}`. |
+| `warnings` | `jsonb` | No | JSON array of non-blocking data-quality observations; defaults to `[]`. |
+| `error_summary` | `text` | Yes | Required only for a failed run; bounded and contains no connection credentials. |
+
+Indexes: primary-key index on `id`; `ix_data_import_runs_started_at` on `started_at DESC`.
+
+There is no foreign key from this audit record to the imported rows. The run is created before batch processing so a validation or database failure can be recorded independently of the business-data transaction. Successful business upserts and the `succeeded` status commit together. Failed business writes roll back, then the run is marked `failed` in a separate statement. A process interruption may leave status `running`.
+
+`npm run ingest:csv -- --check` validates the fixed five-file source set without a database connection and does not create an audit record. A normal invocation requires migration 004 to have been applied first.
 
 ## Structured Domain Tables
 
@@ -208,4 +231,4 @@ The original PDF remains the source of truth. `documents` records its filename, 
 - `users.password_hash` is only a hash field. Hash generation/verification is deferred to the future application layer.
 - The four supplied PDFs do not identify specific CSV entity IDs; no speculative document/entity relationship is defined.
 - `updated_at` defaults on insertion; no automatic update trigger is installed.
-- These tables have no CSV/PDF records seeded by the migration. Ingestion is out of scope for this phase.
+- Migrations define structure but do not seed CSV or PDF content. The five supplied CSVs are loaded by the separate CLI; PDF registration and content processing remain deferred.

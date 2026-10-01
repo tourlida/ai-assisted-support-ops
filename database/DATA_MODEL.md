@@ -170,7 +170,7 @@ JSONB object metadata is used only for variable document, page, and chunk attrib
 
 - Source IDs are stable identifiers suitable for primary keys and are preserved verbatim.
 - The visible “Last updated” date in each PDF is the business `document_date`; PDF filesystem/metadata creation dates are provenance metadata, not policy dates.
-- Structured source paths and CSV data-row numbers (header is row 1) will be populated by a future import process.
+- The CSV CLI populates structured source paths and one-based physical CSV line numbers (header is row 1).
 - Constraint domains represent the currently supplied data and can be expanded through migrations if future source values require them.
 - `document_type` distinguishes `faq`, `refund_policy`, `shipping_policy`, `warranty_policy`, and `other`.
 
@@ -178,7 +178,6 @@ JSONB object metadata is used only for variable document, page, and chunk attrib
 
 - What currency do order totals, product prices, and unit prices represent? The CSVs have no currency field.
 - Are product category and customer tier vocabularies closed, or may additional values appear in future feeds?
-- Is source row number sufficient provenance for the eventual CSV import, or will a batch/import-run entity be required?
 - Should future document associations be made to products/orders/tickets? The current PDFs do not name specific structured IDs, so none are added now.
 
 ## 15. Design Rationale
@@ -186,3 +185,13 @@ JSONB object metadata is used only for variable document, page, and chunk attrib
 The schema gives each CSV entity a normal relational table, preserves provided identifiers and transaction snapshots, and uses foreign keys/checks/indexes for observed integrity and likely support lookup paths. Document source data, pages, and future chunks are modeled independently from business entities and remain traceable to the original document and page. This separates original/source content from derived chunks and leaves an embedding layer addable later without redesigning the core relations. The SQL migration is the implementation source of truth; the companion schema and ERD documents describe that migration.
 
 Application identities are kept distinct from the imported customer entity. The `users` table stores an application-generated password hash, a constrained `agent`/`admin` role, an active flag, and timestamps. It stores no plaintext password, JWT, JWT secret, or session secret; password hashing/verification and inactive-account rejection belong to future application code.
+
+## 16. CSV Ingestion Strategy
+
+The five structured CSVs are loaded by an explicit server-side TypeScript CLI, not by API startup or an HTTP endpoint. The CLI adapter is `server/src/cli/import-csv.ts`; it reads and hashes the fixed files under `datasets/` and prints the result. It calls `server/src/services/csv-import.service.ts`, which owns batch orchestration, audit lifecycle, and database writes. That service uses the database-independent `server/src/ingestion/csv-batch-parser.ts` for exact header/type validation, duplicate source-ID and case-insensitive customer-email checks, foreign-key and ticket/customer ownership checks, and physical-line error locations. The CSV parser supports quoted fields and multiline values; provenance line numbers include the header as line 1. The service is currently called only by the CLI; no HTTP route or startup hook invokes it.
+
+All source files are parsed and validated before business-table writes begin. A successful import upserts by each table's source `id` in dependency order: customers and products, orders, order items, then support tickets. A later file that omits an existing source ID does not delete that database row. Each row receives its `datasets/<filename>` source path and one-based physical source line number. Monetary values are passed to PostgreSQL as decimal strings, avoiding JavaScript floating-point conversion.
+
+Each non-check import creates a `data_import_runs` audit row before validation/write processing. The run records status and timestamps, per-file source paths and raw-byte SHA-256 checksums, validated row counts, non-blocking warnings, and a bounded error summary on failure. Business-table upserts and the successful audit status update share one database transaction. On validation or write failure, business writes roll back and the separately committed run is marked failed. A process interruption can leave a run in `running` status for later investigation. `npm run ingest:csv -- --check` performs source parsing and validation without connecting to the database or creating an audit row.
+
+`ORD-1023` remains an accepted source discrepancy: the 278.99 header amount differs from item total 228.99. The CLI surfaces this as a warning and preserves both source values. Importing PDFs, extracting page text, creating chunks, and generating embeddings remain outside this CSV milestone.

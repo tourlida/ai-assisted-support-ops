@@ -336,6 +336,24 @@ The browser-created test user and automated test users were removed; the live `u
 
 **Outcome:** Docker was already running. Stopped the four Node listeners on ports 3000, 3001, 3002, and 5173, then restarted the existing Postgres container while preserving its data volume and schema. All nine application tables were already empty, so no row deletion was necessary. Restarted the API on port 3000 using root `.env` database settings and Vite on port 5173 configured for that API. `/health` and `/health/db` both return OK, Vite returns HTTP 200, and the database remains at nine tables with zero rows.
 
+### October 1, 2026
+
+#### Audited CSV ingestion implementation
+
+**User:**
+
+> Start implementation
+
+**Approved architecture:** Import the five structured CSV files first through an explicit TypeScript CLI, separate from HTTP startup and API endpoints. Validate the complete batch before business writes; use source-ID upserts without deleting rows absent from a later file; commit all five tables atomically; retain one persistent audit record per write attempt. Keep PDF registration, extraction, chunking, embeddings, and RAG for a later phase.
+
+**Implementation:** Added a standards-compliant CSV parser, exact header/type/date/domain validation, duplicate ID and case-insensitive email checks, foreign-key/customer-order ownership checks, and physical-line provenance that handles quoted multiline records. Added `npm run ingest:csv` and no-database `npm run ingest:csv -- --check`. Added migration 004 with `data_import_runs`; migrations 001-003 and the existing users/business schemas were not modified. The write path upserts in dependency order and records per-file SHA-256, validated row counts, warnings, status, and sanitized failures. A failure test confirms business writes roll back while the failed audit record remains.
+
+**Database outcome:** Applied migration 004 to local `ai_support_ops`. Three batch runs completed successfully. The five imported tables contain 8 customers, 6 products, 10 orders, 14 order items, and 5 support tickets; source row numbers begin at 2 and match physical CSV lines. The existing single `users` row was preserved. Re-import updates matching IDs and does not remove omitted rows. `ORD-1023` remains 278.99 at the header and 228.99 across its item lines; the CLI reports the difference as a warning.
+
+**Validation:** Check-only mode passed over all 43 source records. All 27 backend tests passed, including parser, physical-line provenance, rollback/audit persistence, and upsert/omission behavior. Strict TypeScript checking and production build passed. Tests/build used a temporary Node 22 runtime because the installed system Node is 18.16.0 and the repository's Vite/Vitest toolchain requires a newer runtime.
+
+**Deliverable:** The architecture and implementation report is [docs/day3/report.pdf](day3/report.pdf). CSV import documentation is updated in the data model, schema, ERD, and server README. No PDFs were ingested and no application HTTP routes were added.
+
 ## Architecture Decision Log
 
 | ID | Topic | Decision | Status | Rationale / consequences |
@@ -344,9 +362,10 @@ The browser-created test user and automated test users were removed; the live `u
 | DB-2 | Local database configuration | Keep database name, password, and host port in an ignored `.env` file | Implemented | `DATABASE_PORT` interprets the user's `database_port` as a port; `.env` is excluded from Git. Password currently has a local-only placeholder value. |
 | DB-3 | User display name | Add `users.name` via forward-only migration 003 | Applied | Approved because registration/dashboard need a persisted name; no existing users required backfill. |
 | AUTH-1 | Browser authentication | Store JWT only in an HttpOnly `SameSite=Lax` cookie | Implemented | React receives safe user data only; browser automatically sends the cookie, and the backend clears it on logout. |
-
-| ID | Topic | Decision | Status | Rationale / consequences |
-| --- | --- | --- | --- | --- |
+| INGEST-1 | CSV execution | Use a standalone TypeScript CLI; never load at API startup or through an HTTP endpoint | Implemented | Explicit operator invocation keeps database writes out of application startup and request handling. |
+| INGEST-2 | Validation and transaction | Validate all five CSVs before business writes; commit upserts and successful audit status together | Implemented | A failed database write rolls back all business changes; a separately committed audit row records failure. |
+| INGEST-3 | Reload behavior | Upsert by source ID; do not delete rows missing from a later file | Implemented | Re-imports are repeatable and source omissions do not erase database records. |
+| INGEST-4 | Scope and provenance | Import structured CSVs with source path, physical line, SHA-256, and batch audit; defer PDFs | Implemented | `ORD-1023` is reported as a warning and both source values are preserved. |
 
 ## Open Questions
 

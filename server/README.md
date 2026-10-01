@@ -1,6 +1,6 @@
 # SupportOps Server
 
-A TypeScript/Express backend foundation for SupportOps. This phase provides PostgreSQL connectivity, login with JWT authentication, health endpoints, and an authenticated mock chat API. It does not implement AI, RAG, ingestion, tools, or frontend code.
+A TypeScript/Express backend foundation for SupportOps. This phase provides PostgreSQL connectivity, login with JWT authentication, health endpoints, an authenticated mock chat API, and a standalone CLI for importing the five structured CSV datasets. It does not implement AI, RAG, PDF ingestion, tools, or frontend code.
 
 ## Architecture
 
@@ -8,9 +8,13 @@ A TypeScript/Express backend foundation for SupportOps. This phase provides Post
 Routes -> Controllers -> Services -> PostgreSQL (pg)
                    Middleware handles authentication, errors, and request logging
                    Zod schemas validate external request bodies
+
+CSV command -> CLI adapter -> CSV import service -> batch parser + PostgreSQL
 ```
 
-The server uses the existing database managed by `database/migrations/001_initial_schema.sql`, `002_add_users.sql`, and `003_add_user_name.sql`. It never creates tables or runs migrations. Application users in `users` are separate from business customers in `customers`.
+The ingestion service is called by the explicit CLI command only. It is not called during server startup and is not exposed through an HTTP route. The service can be reused by a future job or operator workflow without moving batch writes into request handling.
+
+The server uses the existing database managed by `database/migrations/001_initial_schema.sql`, `002_add_users.sql`, `003_add_user_name.sql`, and `004_add_data_import_runs.sql`. The application never runs migrations automatically. Application users in `users` are separate from business customers in `customers`.
 
 ## Requirements
 
@@ -47,8 +51,33 @@ npm run dev
 npm run typecheck
 npm run build
 npm test
+npm run ingest:csv -- --check
 npm start
 ```
+
+## CSV Ingestion
+
+The responsibilities are separated by module:
+
+- `src/cli/import-csv.ts` parses command options, reads and hashes the fixed files under `datasets/`, and prints the result.
+- `src/services/csv-import.service.ts` owns batch orchestration, audit lifecycle, the database transaction, and source-ID upserts.
+- `src/ingestion/csv-batch-parser.ts` is the database-independent parser and validation contract.
+
+Apply migration 004 to the configured PostgreSQL database before running a write import. The service validates the complete batch before business writes and upserts by source ID in foreign-key dependency order. It runs outside the Express API and does not create tables. Re-imports update matching IDs but do not delete database rows absent from a later CSV.
+
+Run validation without connecting to PostgreSQL:
+
+```sh
+npm run ingest:csv -- --check
+```
+
+Run the atomic import after migration 004 is applied:
+
+```sh
+npm run ingest:csv
+```
+
+Every write attempt is recorded in `data_import_runs`, including failed validation or database writes. A successful audit status and all five table upserts commit in one transaction; failed writes roll back and the run is marked failed separately. The CLI prints row counts and non-blocking warnings. It does not print database configuration or credentials. The current `ORD-1023` header/item total difference is intentionally warned about and preserved. PDF registration, extraction, chunking, embeddings, and RAG remain deferred.
 
 The integration test suite connects to the configured database, creates uniquely named short-lived test accounts with runtime-generated password hashes, and deletes those accounts during cleanup. It does not print passwords, hashes, tokens, or database configuration. Run tests only against a development/test database.
 
