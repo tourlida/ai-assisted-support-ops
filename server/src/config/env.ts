@@ -17,11 +17,19 @@ const databaseConfigSchema = z.object({
   DATABASE_HOST: z.string().min(1).default("127.0.0.1"),
   DATABASE_PORT: z.coerce.number().int().min(1).max(65535),
 });
-const databaseConfig = databaseConfigSchema.safeParse(dotenv.parse(readFileSync(rootEnvPath)));
+const databaseConfig = databaseConfigSchema.safeParse(
+  dotenv.parse(readFileSync(rootEnvPath)),
+);
 
 if (!databaseConfig.success) {
-  const invalidNames = [...new Set(databaseConfig.error.issues.map((issue) => issue.path.join(".")))];
-  throw new Error(`Invalid root database configuration: ${invalidNames.join(", ")}`);
+  const invalidNames = [
+    ...new Set(
+      databaseConfig.error.issues.map((issue) => issue.path.join(".")),
+    ),
+  ];
+  throw new Error(
+    `Invalid root database configuration: ${invalidNames.join(", ")}`,
+  );
 }
 
 const databaseUrl = new URL("postgresql://localhost");
@@ -34,19 +42,34 @@ databaseUrl.pathname = `/${databaseConfig.data.DATABASE_NAME}`;
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]),
   PORT: z.coerce.number().int().min(1).max(65535),
-  DATABASE_URL: z.url().refine((value) => value.startsWith("postgres://") || value.startsWith("postgresql://"), {
-    message: "Must be a PostgreSQL connection URL",
-  }),
+  DATABASE_URL: z
+    .url()
+    .refine(
+      (value) =>
+        value.startsWith("postgres://") || value.startsWith("postgresql://"),
+      {
+        message: "Must be a PostgreSQL connection URL",
+      },
+    ),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().regex(/^[1-9]\d*[smhd]$/),
   CLIENT_ORIGIN: z.url(),
+  OLLAMA_BASE_URL: z.url().default("http://localhost:11434"),
+  EMBEDDING_MODEL: z.string().min(1).default("nomic-embed-text"),
 });
 
-const parsed = envSchema.safeParse({ ...process.env, DATABASE_URL: databaseUrl.toString() });
+const parsed = envSchema.safeParse({
+  ...process.env,
+  DATABASE_URL: databaseUrl.toString(),
+});
 
 if (!parsed.success) {
-  const invalidNames = [...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))];
-  throw new Error(`Invalid environment configuration: ${invalidNames.join(", ")}`);
+  const invalidNames = [
+    ...new Set(parsed.error.issues.map((issue) => issue.path.join("."))),
+  ];
+  throw new Error(
+    `Invalid environment configuration: ${invalidNames.join(", ")}`,
+  );
 }
 
 export const env = parsed.data;

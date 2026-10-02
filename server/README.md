@@ -1,6 +1,6 @@
 # SupportOps Server
 
-A TypeScript/Express backend foundation for SupportOps. This phase provides PostgreSQL connectivity, login with JWT authentication, health endpoints, an authenticated mock chat API, and a standalone CLI for importing the five structured CSV datasets. It does not implement AI, RAG, PDF ingestion, tools, or frontend code.
+A TypeScript/Express backend foundation for SupportOps. This phase provides PostgreSQL connectivity, login with JWT authentication, health endpoints, an authenticated mock chat API, and a standalone CLI for importing the five structured CSV datasets. It does not implement AI chat, RAG answers, tools, or frontend code.
 
 ## Architecture
 
@@ -80,6 +80,23 @@ npm run ingest:csv
 Every write attempt is recorded in `data_import_runs`, including failed validation or database writes. A successful audit status and all five table upserts commit in one transaction; failed writes roll back and the run is marked failed separately. The CLI prints row counts and non-blocking warnings. It does not print database configuration or credentials. The current `ORD-1023` header/item total difference is intentionally warned about and preserved. PDF registration, extraction, chunking, embeddings, and RAG remain deferred.
 
 The integration test suite connects to the configured database, creates uniquely named short-lived test accounts with runtime-generated password hashes, and deletes those accounts during cleanup. It does not print passwords, hashes, tokens, or database configuration. Run tests only against a development/test database.
+
+## PDF Ingestion
+
+A separate CLI loads the PDFs in `datasets/rag_documents/` into `documents`, `document_pages`, `document_chunks`, and `document_chunk_embeddings`. It requires migration 005, the `pgvector/pgvector:pg17` database image, and a running Ollama with the embedding model pulled (`docker compose` starts Ollama and pulls `nomic-embed-text`).
+
+- `src/cli/import-pdf.ts` reads the files, calculates SHA-256, and prints results.
+- `src/services/pdf-import.service.ts` owns the per-document transaction, replace-on-change, and retrieval query.
+- `src/services/ollama-embedding.client.ts` calls Ollama's `/api/embed` and validates the 768-dimension result.
+- `src/ingestion/pdf-extractor.ts` and `pdf-chunker.ts` are database-independent.
+
+```sh
+npm run ingest:pdf -- --check                  # extract and chunk only; no database or Ollama
+npm run ingest:pdf                             # embed and load; unchanged files are skipped
+npm run ingest:pdf -- --search "refund time"   # print the 3 nearest chunks
+```
+
+Settings default to `OLLAMA_BASE_URL=http://localhost:11434` and `EMBEDDING_MODEL=nomic-embed-text`; both can be overridden in `server/.env`. A changed PDF replaces its previous pages, chunks, and embeddings. There is no PDF audit table, ANN index, or chat integration yet. `unpdf` is pinned to 1.7.0 because later versions require Node 22.
 
 ## Endpoints
 

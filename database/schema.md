@@ -1,12 +1,12 @@
 # Database Schema
 
-The executable source of truth is [`migrations/001_initial_schema.sql`](migrations/001_initial_schema.sql), [`migrations/002_add_users.sql`](migrations/002_add_users.sql), [`migrations/003_add_user_name.sql`](migrations/003_add_user_name.sql), and [`migrations/004_add_data_import_runs.sql`](migrations/004_add_data_import_runs.sql). This document describes the resulting schema.
+The executable source of truth is [`migrations/001_initial_schema.sql`](migrations/001_initial_schema.sql), [`migrations/002_add_users.sql`](migrations/002_add_users.sql), [`migrations/003_add_user_name.sql`](migrations/003_add_user_name.sql), [`migrations/004_add_data_import_runs.sql`](migrations/004_add_data_import_runs.sql), and [`migrations/005_add_chunk_embeddings.sql`](migrations/005_add_chunk_embeddings.sql). This document describes the resulting schema.
 
 ## Model Overview
 
 Structured CSV records are modeled as five normalized business-data tables: `customers`, `products`, `orders`, `order_items`, and `support_tickets`. Application access is modeled separately by `users`. A `user` is a person authorized to access the SupportOps application; a `customer` is a business entity whose order and support data is managed by the system. They are different concepts and `users` has no foreign key to `customers`. The PDFs have a separate document provenance model: `documents`, `document_pages`, and `document_chunks`. There are deliberately no foreign keys between business-domain tables and documents because the provided PDFs do not identify specific customer, product, order, or ticket IDs.
 
-The migrations create the relational schema and import-run audit table. The separate CLI loads the five structured CSV files. No PDF rows are loaded, page text is not extracted, chunks and embeddings are not generated, and `pgvector` is not installed.
+The migrations create the relational schema, the import-run audit table, and the `pgvector` extension with a chunk-embeddings table. The separate CSV CLI loads the five structured CSV files, and the separate PDF CLI loads documents, pages, chunks, and embeddings.
 
 The `users` table stores only application-generated password hashes, never plaintext passwords. Password hashing and verification, login, inactive-account rejection, and future JWT/session behavior belong to the application layer and are not implemented by these migrations.
 
@@ -188,7 +188,20 @@ Purpose: Future derived text segments, each traceable to an exact page of its so
 
 Unique constraints/indexes: primary key on `id`; `uq_document_chunks_document_index` on (`document_id`, `chunk_index`); `ix_document_chunks_page_id` on `page_id`. The composite foreign key (`page_id`, `document_id`) references `document_pages(id, document_id)` and cascades deletion from the page. This prevents chunks from associating a page with the wrong document.
 
-Relationships: each chunk belongs to one document and one page of that document. No chunk rows are created until a later chunking phase.
+Relationships: each chunk belongs to one document and one page of that document. Chunk rows are created by the PDF CLI.
+
+### `document_chunk_embeddings`
+
+Purpose: One embedding per chunk and embedding model. `document_chunks.content` stays the source of truth; embeddings are derived and can be regenerated.
+
+| Column | PostgreSQL type | Null? | Key / constraint |
+| --- | --- | --- | --- |
+| `chunk_id` | `bigint` | No | Part of the primary key; foreign key to `document_chunks.id`, deleting a chunk cascades. |
+| `model` | `text` | No | Part of the primary key; embedding model name, must not be blank. |
+| `embedding` | `vector(768)` | No | Fixed 768 dimensions, matching `nomic-embed-text`. |
+| `created_at` | `timestamptz` | No | Defaults to `now()`. |
+
+Primary key: (`chunk_id`, `model`). No ANN index is defined; at the current data size an exact cosine scan (`<=>`) is used. Add HNSW only if the chunk count grows. A model with a different dimension needs a new column or table.
 
 ## Application Authentication Table
 
@@ -215,7 +228,7 @@ Authentication responsibility: the database stores a password hash supplied by t
 
 ## RAG Readiness and Provenance
 
-The original PDF remains the source of truth. `documents` records its filename, source path, optional SHA-256 checksum, type, business date, and metadata. `document_pages` stores one-based page numbers and has room for future extracted text. `document_chunks` stores derived text with both page and document keys, so retrieved content can be traced to a source page. Embeddings can be added later in a separate derived-data relation or a future schema migration, without making embeddings the only copy of the content. This initial migration intentionally contains no pgvector extension or embedding columns.
+The original PDF remains the source of truth. `documents` records its filename, source path, optional SHA-256 checksum, type, business date, and metadata. `document_pages` stores one-based page numbers and has room for future extracted text. `document_chunks` stores derived text with both page and document keys, so retrieved content can be traced to a source page. Embeddings are stored in a separate derived table, so the text is never only held as a vector. Migration 005 enables `pgvector`; the database image must include it (`pgvector/pgvector:pg17`).
 
 ## Assumptions, Limitations, and Open Questions
 
@@ -231,4 +244,4 @@ The original PDF remains the source of truth. `documents` records its filename, 
 - `users.password_hash` is only a hash field. Hash generation/verification is deferred to the future application layer.
 - The four supplied PDFs do not identify specific CSV entity IDs; no speculative document/entity relationship is defined.
 - `updated_at` defaults on insertion; no automatic update trigger is installed.
-- Migrations define structure but do not seed CSV or PDF content. The five supplied CSVs are loaded by the separate CLI; PDF registration and content processing remain deferred.
+- Migrations define structure but do not seed content. The five CSVs and the four PDFs are loaded by separate CLIs. Replacing a changed PDF deletes and recreates its document row, so its `documents.id` changes.

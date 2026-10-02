@@ -70,6 +70,7 @@ erDiagram
 erDiagram
     documents ||--o{ document_pages : has
     document_pages ||--o{ document_chunks : contains
+    document_chunks ||--o{ document_chunk_embeddings : embedded_as
 
     documents {
         bigint id PK
@@ -99,6 +100,12 @@ erDiagram
         jsonb metadata
         timestamptz created_at
         timestamptz updated_at
+    }
+    document_chunk_embeddings {
+        bigint chunk_id PK, FK
+        text model PK
+        vector embedding
+        timestamptz created_at
     }
 ```
 
