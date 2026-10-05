@@ -98,6 +98,20 @@ npm run ingest:pdf -- --search "refund time"   # print the 3 nearest chunks
 
 Settings default to `OLLAMA_BASE_URL=http://localhost:11434` and `EMBEDDING_MODEL=nomic-embed-text`; both can be overridden in `server/.env`. A changed PDF replaces its previous pages, chunks, and embeddings. There is no PDF audit table, ANN index, or chat integration yet. `unpdf` is pinned to 1.7.0 because later versions require Node 22.
 
+## Ollama Chat Sample
+
+The standalone chat sample uses the official `ollama` JavaScript SDK to send one prompt to a local Ollama generative model and stream its response to the console. It does not access PostgreSQL, retrieve PDF chunks, or call tools; the application chat endpoint remains mocked.
+
+The Compose `ollama-pull` job pulls both `nomic-embed-text` and `llama3.2:1b` into the persistent Ollama volume. After Ollama is running and the pull job completes, run from `server/`:
+
+```sh
+npm run sample:chat -- "Explain our refund policy in one sentence"
+```
+
+The prompt can also be passed without quotes as multiple shell arguments; the script joins them with spaces. Defaults are `OLLAMA_BASE_URL=http://localhost:11434` and `OLLAMA_CHAT_MODEL=llama3.2:1b`, configurable in `server/.env`. The small 1B model is intended for a low-resource local demo and may answer less reliably than a larger or hosted model. Docker needs enough memory for the chat model; embeddings and chat use different models for different tasks.
+
+The first chat request can take several minutes while the CPU-backed model loads. Compose allows a 15-minute model-load window, and the sample allows 20 minutes for the first response. Later requests should be faster while the model remains loaded.
+
 ## Endpoints
 
 | Method | Path | Authentication | Purpose |

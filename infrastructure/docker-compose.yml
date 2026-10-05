@@ -12,6 +12,8 @@ services:
 
   ollama:
     image: ollama/ollama
+    environment:
+      OLLAMA_LOAD_TIMEOUT: 15m
     ports:
       - "11434:11434"
     volumes:
@@ -28,7 +30,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: ollama:11434
-    entrypoint: ["sh", "-c", "ollama pull ${EMBEDDING_MODEL:-nomic-embed-text}"]
+    entrypoint: ["sh", "-c", "ollama pull ${EMBEDDING_MODEL:-nomic-embed-text} && ollama pull ${OLLAMA_CHAT_MODEL:-llama3.2:1b}"]
     restart: "no"
 
 volumes:

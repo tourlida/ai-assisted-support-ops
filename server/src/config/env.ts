@@ -56,6 +56,7 @@ const envSchema = z.object({
   CLIENT_ORIGIN: z.url(),
   OLLAMA_BASE_URL: z.url().default("http://localhost:11434"),
   EMBEDDING_MODEL: z.string().min(1).default("nomic-embed-text"),
+  OLLAMA_CHAT_MODEL: z.string().min(1).default("llama3.2:3b"),
 });
 
 const parsed = envSchema.safeParse({

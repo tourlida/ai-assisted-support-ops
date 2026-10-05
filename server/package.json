@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "ingest:csv": "tsx src/cli/import-csv.ts",
     "ingest:pdf": "tsx src/cli/import-pdf.ts",
+    "sample:chat": "tsx samples/ollama-chat/run.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -20,7 +21,9 @@
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "ollama": "^0.6.4",
     "pg": "^8.16.3",
+    "undici": "6.29.0",
     "unpdf": "1.7.0",
     "zod": "^4.1.5"
   },
